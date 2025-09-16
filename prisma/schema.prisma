@@ -1,0 +1,547 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model NotificationTracker {
+  id        String                    @id @default(cuid())
+  userId    String
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String                    @map("event_type") // e.g. welcome, kyc_uploaded, kyc_failed, enable_2fa
+  channel   String // email, sms, push, inapp
+  messageId String                    @map("message_id") // Template ID/version used
+  payload   Json? // Arbitrary metadata (kycId, txId, reason, etc)
+  sentAt    DateTime                  @map("sent_at") // When it was communicated
+  status    NotificationTrackerStatus // success, failed, pending
+  uniqueKey String?                   @unique @map("unique_key") // For deduping one-time messages (e.g. welcome:userId)
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([channel])
+  @@index([status])
+  @@index([sentAt])
+  @@index([uniqueKey])
+  @@map("notification_tracker")
+}
+
+// User Management
+model User {
+  id                  String    @id @default(cuid())
+  uid                 Int       @unique @default(autoincrement()) // optional numeric ID
+  email               String    @unique
+  username            String    @unique
+  password            String
+  firstName           String?
+  lastName            String?
+  phone               String?
+  profilePicture      String?   @db.VarChar(1024)
+  loginType           String    @default("PASSWORD") // PASSWORD, GOOGLE_OAUTH
+  isEmailVerified     Boolean   @default(false)
+  isPhoneVerified     Boolean   @default(false)
+  isKycVerified       Boolean   @default(false)
+  withdrawalWhitelist Boolean   @default(false)
+  kycLevel            Int       @default(0)
+  isActive            Boolean   @default(true)
+  isFrozen            Boolean   @default(false)
+  google2FASecret     String?
+  isGoogle2FAEnabled  Boolean   @default(false)
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  wallets              Wallet[]
+  spotOrders           SpotOrder[]
+  marginOrders         MarginOrder[]
+  marginAccounts       MarginAccount[]
+  deposits             Deposit[]
+  withdrawals          Withdrawal[]
+  apiKeys              ApiKey[]
+  userSettings         UserSettings?
+  loginHistory         LoginHistory[]
+  kycSubmissions       KycSubmission[]
+  referralCodes        ReferralCode[]
+  referrals            Referral[]            @relation("Referrer")
+  referredBy           Referral?             @relation("Referred")
+  notifications        Notification[]
+  notificationTrackers NotificationTracker[]
+  buyerTrades          Trade[]               @relation("Buyer")
+  sellerTrades         Trade[]               @relation("Seller")
+  ImageRecord          ImageRecord[]
+
+  @@index([email])
+  @@index([username])
+  @@index([isActive])
+}
+
+// User Settings
+model UserSettings {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultOrderType         String   @default("LIMIT")
+  defaultTimeInForce       String   @default("GTC")
+  enableEmailNotifications Boolean  @default(true)
+  enablePushNotifications  Boolean  @default(true)
+  enableTradeNotifications Boolean  @default(true)
+  enablePriceAlerts        Boolean  @default(true)
+  withdrawalWhitelist      String[]
+  loginAlertEnabled        Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
+
+// KYC Submissions
+model KycSubmission {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level              Int
+  status             String    @default("PENDING") // PENDING, PROCESSING, APPROVED, REJECTED, NOT_SUBMITTED
+  firstName          String
+  lastName           String
+  dateOfBirth        DateTime
+  nationality        String
+  idType             String // passport,drivinglicense,idcard,bvn
+  idNumber           String
+  idFrontImage       String
+  idBackImage        String?
+  selfieImage        String
+  addressProof       String?
+  utilityBill        String?
+  expireDate         DateTime?
+  submittedAt        DateTime  @default(now())
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  rejectionReason    String?
+  rejectReason       String? // From KuCoin API
+  sentToKucoin       Boolean   @default(false)
+  sentAt             DateTime?
+  kucoinSubmissionId String?
+  checkedAt          DateTime?
+  errorMessage       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([sentToKucoin])
+  @@index([sentAt])
+}
+
+// API Keys
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  apiKey      String    @unique
+  secretKey   String
+  passphrase  String?
+  permissions String[]
+  ipWhitelist String[]
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([apiKey])
+}
+
+// Trading Assets
+model Asset {
+  id              String   @id @default(cuid())
+  symbol          String   @unique
+  name            String
+  decimals        Int      @default(8)
+  isActive        Boolean  @default(true)
+  isFiat          Boolean  @default(false)
+  isStableCoin    Boolean  @default(false)
+  blockchain      String?
+  contractAddress String?
+  logo            String?
+  color           String?
+  minDeposit      Decimal  @default(0) @db.Decimal(32, 16)
+  minWithdrawal   Decimal  @default(0) @db.Decimal(32, 16)
+  withdrawalFee   Decimal  @default(0) @db.Decimal(32, 16)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  wallets           Wallet[]
+  deposits          Deposit[]
+  withdrawals       Withdrawal[]
+  baseTradingPairs  TradingPair[] @relation("BaseAsset")
+  quoteTradingPairs TradingPair[] @relation("QuoteAsset")
+
+  @@index([symbol])
+  @@index([isActive])
+}
+
+// Trading Pairs
+model TradingPair {
+  id                String   @id @default(cuid())
+  symbol            String   @unique
+  baseAssetId       String
+  quoteAssetId      String
+  baseAsset         Asset    @relation("BaseAsset", fields: [baseAssetId], references: [id])
+  quoteAsset        Asset    @relation("QuoteAsset", fields: [quoteAssetId], references: [id])
+  minOrderSize      Decimal  @db.Decimal(32, 16)
+  maxOrderSize      Decimal  @db.Decimal(32, 16)
+  minOrderValue     Decimal  @db.Decimal(32, 16)
+  pricePrecision    Int
+  quantityPrecision Int
+  isActive          Boolean  @default(true)
+  isMarginEnabled   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  spotOrders       SpotOrder[]
+  marginOrders     MarginOrder[]
+  trades           Trade[]
+  orderBookEntries OrderBookEntry[]
+  klineData        KlineData[]
+  marginAccounts   MarginAccount[]
+
+  @@index([symbol])
+  @@index([isActive])
+  @@index([isMarginEnabled])
+}
+
+// User Wallets
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     Asset    @relation(fields: [assetId], references: [id])
+  balance   Decimal  @default(0) @db.Decimal(32, 16)
+  locked    Decimal  @default(0) @db.Decimal(32, 16)
+  borrowed  Decimal  @default(0) @db.Decimal(32, 16)
+  address   String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, assetId])
+  @@index([userId])
+  @@index([assetId])
+}
+
+// Spot Orders
+model SpotOrder {
+  id                String      @id @default(cuid())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingPairId     String
+  tradingPair       TradingPair @relation(fields: [tradingPairId], references: [id])
+  side              String
+  type              String
+  status            String      @default("NEW")
+  timeInForce       String      @default("GTC")
+  price             Decimal?    @db.Decimal(32, 16)
+  quantity          Decimal     @db.Decimal(32, 16)
+  filledQuantity    Decimal     @default(0) @db.Decimal(32, 16)
+  remainingQuantity Decimal     @db.Decimal(32, 16)
+  stopPrice         Decimal?    @db.Decimal(32, 16)
+  fee               Decimal     @default(0) @db.Decimal(32, 16)
+  feeAsset          String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  trades Trade[]
+
+  @@index([userId])
+  @@index([tradingPairId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Margin Orders
+model MarginOrder {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradingPairId     String
+  tradingPair       TradingPair   @relation(fields: [tradingPairId], references: [id])
+  marginAccountId   String
+  marginAccount     MarginAccount @relation(fields: [marginAccountId], references: [id])
+  side              String
+  type              String
+  status            String        @default("NEW")
+  timeInForce       String        @default("GTC")
+  price             Decimal?      @db.Decimal(32, 16)
+  quantity          Decimal       @db.Decimal(32, 16)
+  filledQuantity    Decimal       @default(0) @db.Decimal(32, 16)
+  remainingQuantity Decimal       @db.Decimal(32, 16)
+  leverage          Decimal       @db.Decimal(5, 2)
+  stopPrice         Decimal?      @db.Decimal(32, 16)
+  fee               Decimal       @default(0) @db.Decimal(32, 16)
+  feeAsset          String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  trades Trade[]
+
+  @@index([userId])
+  @@index([tradingPairId])
+  @@index([marginAccountId])
+  @@index([status])
+}
+
+// Margin Accounts
+model MarginAccount {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type           String
+  tradingPairId  String?
+  tradingPair    TradingPair? @relation(fields: [tradingPairId], references: [id])
+  totalAsset     Decimal      @default(0) @db.Decimal(32, 16)
+  totalLiability Decimal      @default(0) @db.Decimal(32, 16)
+  netAsset       Decimal      @default(0) @db.Decimal(32, 16)
+  marginRatio    Decimal      @default(0) @db.Decimal(5, 2)
+  riskRate       Decimal      @default(0) @db.Decimal(5, 2)
+  status         String       @default("NORMAL")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  marginOrders MarginOrder[]
+
+  @@unique([userId, type, tradingPairId])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+}
+
+// Executed Trades
+model Trade {
+  id            String       @id @default(cuid())
+  spotOrderId   String?
+  spotOrder     SpotOrder?   @relation(fields: [spotOrderId], references: [id])
+  marginOrderId String?
+  marginOrder   MarginOrder? @relation(fields: [marginOrderId], references: [id])
+  tradingPairId String
+  tradingPair   TradingPair  @relation(fields: [tradingPairId], references: [id])
+  buyerId       String
+  sellerId      String
+  buyer         User         @relation("Buyer", fields: [buyerId], references: [id])
+  seller        User         @relation("Seller", fields: [sellerId], references: [id])
+  side          String
+  price         Decimal      @db.Decimal(32, 16)
+  quantity      Decimal      @db.Decimal(32, 16)
+  amount        Decimal      @db.Decimal(32, 16)
+  buyerFee      Decimal      @default(0) @db.Decimal(32, 16)
+  sellerFee     Decimal      @default(0) @db.Decimal(32, 16)
+  feeAsset      String
+  buyOrderId    String?
+  sellOrderId   String?
+  createdAt     DateTime     @default(now())
+
+  @@index([tradingPairId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([createdAt])
+}
+
+// Order Book Entries
+model OrderBookEntry {
+  id            String      @id @default(cuid())
+  tradingPairId String
+  tradingPair   TradingPair @relation(fields: [tradingPairId], references: [id])
+  side          String
+  price         Decimal     @db.Decimal(32, 16)
+  quantity      Decimal     @db.Decimal(32, 16)
+  isNew         Boolean     @default(true)
+  isUpdate      Boolean     @default(false)
+  isRemove      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  @@index([tradingPairId, side, price])
+  @@index([createdAt])
+}
+
+// K-line Data
+model KlineData {
+  id            String      @id @default(cuid())
+  tradingPairId String
+  tradingPair   TradingPair @relation(fields: [tradingPairId], references: [id])
+  interval      String
+  openTime      DateTime
+  closeTime     DateTime
+  open          Decimal     @db.Decimal(32, 16)
+  high          Decimal     @db.Decimal(32, 16)
+  low           Decimal     @db.Decimal(32, 16)
+  close         Decimal     @db.Decimal(32, 16)
+  volume        Decimal     @db.Decimal(32, 16)
+  quoteVolume   Decimal     @db.Decimal(32, 16)
+  createdAt     DateTime    @default(now())
+
+  @@unique([tradingPairId, interval, openTime])
+  @@index([tradingPairId, interval, openTime])
+}
+
+// Deposits
+model Deposit {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId               String
+  asset                 Asset    @relation(fields: [assetId], references: [id])
+  txHash                String   @unique
+  amount                Decimal  @db.Decimal(32, 16)
+  confirmations         Int      @default(0)
+  requiredConfirmations Int      @default(3)
+  status                String   @default("PENDING")
+  fromAddress           String?
+  toAddress             String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@index([assetId])
+  @@index([status])
+  @@index([txHash])
+}
+
+// Withdrawals
+model Withdrawal {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId           String
+  asset             Asset    @relation(fields: [assetId], references: [id])
+  amount            Decimal  @db.Decimal(32, 16)
+  fee               Decimal  @default(0) @db.Decimal(32, 16)
+  totalAmount       Decimal  @db.Decimal(32, 16)
+  toAddress         String
+  memo              String?
+  status            String   @default("PENDING")
+  txHash            String?  @unique
+  emailVerified     Boolean  @default(false)
+  google2FAVerified Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([assetId])
+  @@index([status])
+  @@index([txHash])
+}
+
+// Login History
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ipAddress String
+  userAgent String
+  location  String?
+  createdAt DateTime @default(now())
+  extraData Json?
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Notifications
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// Referral System
+model ReferralCode {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([code])
+}
+
+model Referral {
+  id             String   @id @default(cuid())
+  referrerId     String
+  referrer       User     @relation("Referrer", fields: [referrerId], references: [id])
+  referredId     String   @unique
+  referred       User     @relation("Referred", fields: [referredId], references: [id])
+  commissionRate Decimal  @default(0.20) @db.Decimal(5, 4)
+  createdAt      DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([referredId])
+}
+
+// Image Records
+model ImageRecord {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageUrl  String    @db.VarChar(1024)
+  type      ImageType
+  fileName  String?
+  fileSize  Int?
+  mimeType  String?
+  metadata  Json?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([userId, type])
+  @@index([isActive])
+}
+
+// System Configuration
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// Enum for notification tracker status
+enum NotificationTrackerStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+// Enum for image types
+enum ImageType {
+  PROFILE
+  PASSPORT
+  DRIVING_LICENCE
+  ID_CARD
+  BVN
+  SELFIE
+}
