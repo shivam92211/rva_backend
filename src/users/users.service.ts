@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 export class UsersService {
   private prisma = new PrismaClient();
 
-  async getUsers(page: number = 1, limit: number = 10, search?: string, status?: string) {
+  async getUsers(page: number = 1, limit: number = 10, search?: string, status?: string, whitelist?: string) {
     const skip = (page - 1) * limit;
 
     // Build filters
@@ -26,6 +26,13 @@ export class UsersService {
       filters.isActive = true;
     } else if (status === 'inactive') {
       filters.isActive = false;
+    }
+
+    // Whitelist filter
+    if (whitelist === 'whitelisted') {
+      filters.withdrawalWhitelist = true;
+    } else if (whitelist === 'not_whitelisted') {
+      filters.withdrawalWhitelist = false;
     }
 
     const [users, totalCount] = await Promise.all([
@@ -103,6 +110,31 @@ export class UsersService {
       id: updatedUser.id,
       isActive: updatedUser.isActive,
       message: `User ${updatedUser.username} ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`
+    };
+  }
+
+  async toggleWithdrawalWhitelist(id: string) {
+    // First, find the user to get current whitelist status
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, withdrawalWhitelist: true, username: true }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Toggle the whitelist status
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: { withdrawalWhitelist: !user.withdrawalWhitelist },
+      select: { id: true, withdrawalWhitelist: true, username: true }
+    });
+
+    return {
+      id: updatedUser.id,
+      withdrawalWhitelist: updatedUser.withdrawalWhitelist,
+      message: `User ${updatedUser.username} ${updatedUser.withdrawalWhitelist ? 'added to' : 'removed from'} withdrawal whitelist successfully`
     };
   }
 

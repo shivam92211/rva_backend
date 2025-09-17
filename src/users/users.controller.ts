@@ -13,6 +13,7 @@ export class UsersController {
   @ApiQuery({ name: 'limit', required: false, description: 'Number of users per page (default: 10, max: 100)', example: 10 })
   @ApiQuery({ name: 'search', required: false, description: 'Search term for username, email, firstName, or lastName', example: 'john' })
   @ApiQuery({ name: 'status', required: false, description: 'Filter by user status: active or inactive', example: 'active' })
+  @ApiQuery({ name: 'whitelist', required: false, description: 'Filter by withdrawal whitelist status: whitelisted or not_whitelisted', example: 'whitelisted' })
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved users with pagination',
@@ -66,12 +67,13 @@ export class UsersController {
     @Query('limit', new ParseIntPipe({ optional: true })) limit: number = 10,
     @Query('search') search?: string,
     @Query('status') status?: string,
+    @Query('whitelist') whitelist?: string,
   ) {
     // Ensure valid pagination parameters
     const validPage = Math.max(1, page);
     const validLimit = Math.min(Math.max(1, limit), 100); // Max 100 users per page
 
-    return this.usersService.getUsers(validPage, validLimit, search, status);
+    return this.usersService.getUsers(validPage, validLimit, search, status, whitelist);
   }
 
   @Patch(':id/toggle-status')
@@ -95,5 +97,28 @@ export class UsersController {
   })
   async toggleUserStatus(@Param('id') id: string) {
     return this.usersService.toggleUserStatus(id);
+  }
+
+  @Patch(':id/toggle-whitelist')
+  @ApiOperation({ summary: 'Toggle user withdrawal whitelist status' })
+  @ApiParam({ name: 'id', description: 'User ID', example: 'clx123user456789' })
+  @ApiResponse({
+    status: 200,
+    description: 'User withdrawal whitelist status toggled successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'clx123user456789' },
+        withdrawalWhitelist: { type: 'boolean', example: true },
+        message: { type: 'string', example: 'User withdrawal whitelist updated successfully' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found'
+  })
+  async toggleWithdrawalWhitelist(@Param('id') id: string) {
+    return this.usersService.toggleWithdrawalWhitelist(id);
   }
 }
