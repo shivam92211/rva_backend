@@ -22,12 +22,15 @@
     "seed:kyc:ts": "ts-node scripts/seed-kyc-submissions.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.0",
     "@prisma/client": "^6.16.1",
+    "@types/multer": "^2.0.0",
     "bcrypt": "^5.1.1",
+    "multer": "^2.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1"

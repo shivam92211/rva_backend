@@ -138,6 +138,40 @@ export class UsersService {
     };
   }
 
+  async getUserById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        uid: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        profilePicture: true,
+        loginType: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        isKycVerified: true,
+        withdrawalWhitelist: true,
+        kycLevel: true,
+        isActive: true,
+        isFrozen: true,
+        isGoogle2FAEnabled: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return user;
+  }
+
   async onModuleDestroy() {
     await this.prisma.$disconnect();
   }

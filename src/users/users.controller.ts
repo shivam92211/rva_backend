@@ -121,4 +121,44 @@ export class UsersController {
   async toggleWithdrawalWhitelist(@Param('id') id: string) {
     return this.usersService.toggleWithdrawalWhitelist(id);
   }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID', example: 'clx123user456789' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved user details',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'clx123user456789' },
+        uid: { type: 'number', example: 1 },
+        email: { type: 'string', example: 'user@example.com' },
+        username: { type: 'string', example: 'username' },
+        firstName: { type: 'string', example: 'John' },
+        lastName: { type: 'string', example: 'Doe' },
+        phone: { type: 'string', example: '+1234567890' },
+        profilePicture: { type: 'string', nullable: true },
+        loginType: { type: 'string', example: 'PASSWORD' },
+        isEmailVerified: { type: 'boolean', example: true },
+        isPhoneVerified: { type: 'boolean', example: true },
+        isKycVerified: { type: 'boolean', example: true },
+        withdrawalWhitelist: { type: 'boolean', example: false },
+        kycLevel: { type: 'number', example: 2 },
+        isActive: { type: 'boolean', example: true },
+        isFrozen: { type: 'boolean', example: false },
+        isGoogle2FAEnabled: { type: 'boolean', example: false },
+        lastLoginAt: { type: 'string', format: 'date-time', nullable: true },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found'
+  })
+  async getUserById(@Param('id') id: string) {
+    return this.usersService.getUserById(id);
+  }
 }
