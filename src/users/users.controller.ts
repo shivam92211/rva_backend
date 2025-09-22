@@ -161,4 +161,61 @@ export class UsersController {
   async getUserById(@Param('id') id: string) {
     return this.usersService.getUserById(id);
   }
+
+  @Get(':id/devices')
+  @ApiOperation({ summary: 'Get user devices and refresh tokens' })
+  @ApiParam({ name: 'id', description: 'User ID', example: 'clx123user456789' })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully retrieved user devices',
+    schema: {
+      type: 'object',
+      properties: {
+        userId: { type: 'string', example: 'clx123user456789' },
+        devices: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'device_001' },
+              ipAddress: { type: 'string', example: '192.168.1.100' },
+              userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0...)' },
+              location: {
+                type: 'object',
+                properties: {
+                  lat: { type: 'number', example: 40.7128 },
+                  lng: { type: 'number', example: -74.0060 },
+                  city: { type: 'string', example: 'New York' },
+                  country: { type: 'string', example: 'US' }
+                }
+              },
+              timezone: { type: 'string', example: 'America/New_York' },
+              fingerprint: { type: 'string', example: 'win_chrome_192168100_001' },
+              refreshTokens: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string', example: 'token_001' },
+                    isActive: { type: 'boolean', example: true },
+                    expiresAt: { type: 'string', format: 'date-time' },
+                    createdAt: { type: 'string', format: 'date-time' }
+                  }
+                }
+              },
+              createdAt: { type: 'string', format: 'date-time' },
+              updatedAt: { type: 'string', format: 'date-time' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found'
+  })
+  async getUserDevices(@Param('id') id: string) {
+    return this.usersService.getUserDevices(id);
+  }
 }

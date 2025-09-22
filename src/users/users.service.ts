@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class UsersService {
-  private prisma = new PrismaClient();
+  constructor(private prisma: PrismaService) {}
 
   async getUsers(page: number = 1, limit: number = 10, search?: string, status?: string, whitelist?: string) {
     const skip = (page - 1) * limit;
@@ -172,7 +172,53 @@ export class UsersService {
     return user;
   }
 
-  async onModuleDestroy() {
-    await this.prisma.$disconnect();
+  async getUserDevices(id: string) {
+    // First check if user exists
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Get user devices with refresh tokens
+    const devices = await this.prisma.device.findMany({
+      where: { userId: id },
+      include: {
+        refreshTokens: {
+          select: {
+            id: true,
+            isActive: true,
+            expiresAt: true,
+            createdAt: true,
+            updatedAt: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        }
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    return {
+      userId: id,
+      devices: devices.map(device => ({
+        id: device.id,
+        ipAddress: device.ipAddress,
+        userAgent: device.userAgent,
+        location: device.location,
+        timezone: device.timezone,
+        fingerprint: device.fingerprint,
+        refreshTokens: device.refreshTokens,
+        createdAt: device.createdAt,
+        updatedAt: device.updatedAt
+      }))
+    };
   }
+
 }

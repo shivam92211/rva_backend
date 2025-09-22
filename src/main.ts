@@ -13,6 +13,7 @@ async function bootstrap() {
     .setDescription('Admin API for RVA trading platform')
     .setVersion('1.0')
     .addTag('users')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

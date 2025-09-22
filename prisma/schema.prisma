@@ -30,7 +30,58 @@ model NotificationTracker {
   @@index([status])
   @@index([sentAt])
   @@index([uniqueKey])
-  @@map("notification_tracker")
+}
+
+// Admin Management
+model Admin {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  password       String // Hashed password
+  role           AdminRole @default(ADMIN)
+  permissions    String[] // Array of permission strings
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  profilePicture String?   @db.VarChar(1024)
+  phone          String?
+  department     String?
+  createdBy      String? // Admin ID who created this admin
+  creator        Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
+  createdAdmins  Admin[]   @relation("AdminCreator")
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  adminLogs  AdminLog[]
+  kycReviews KycSubmission[] @relation("KycReviewer")
+
+  @@index([email])
+  @@index([isActive])
+  @@index([role])
+  @@index([createdAt])
+}
+
+// Admin Activity Logs
+model AdminLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action     String // e.g., LOGIN, LOGOUT, KYC_APPROVE, KYC_REJECT, USER_FREEZE, etc.
+  resource   String? // e.g., USER, KYC, SYSTEM_CONFIG
+  resourceId String? // ID of the affected resource
+  details    Json? // Additional details about the action
+  ipAddress  String
+  userAgent  String
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@index([adminId, createdAt])
 }
 
 // User Management
@@ -55,6 +106,7 @@ model User {
   google2FASecret     String?
   isGoogle2FAEnabled  Boolean   @default(false)
   lastLoginAt         DateTime?
+  deletedAt           DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -65,18 +117,21 @@ model User {
   marginAccounts       MarginAccount[]
   deposits             Deposit[]
   withdrawals          Withdrawal[]
-  apiKeys              ApiKey[]
   userSettings         UserSettings?
   loginHistory         LoginHistory[]
   kycSubmissions       KycSubmission[]
   referralCodes        ReferralCode[]
-  referrals            Referral[]            @relation("Referrer")
-  referredBy           Referral?             @relation("Referred")
+  referrals            Referral[]             @relation("Referrer")
+  referredBy           Referral?              @relation("Referred")
   notifications        Notification[]
   notificationTrackers NotificationTracker[]
-  buyerTrades          Trade[]               @relation("Buyer")
-  sellerTrades         Trade[]               @relation("Seller")
+  buyerTrades          Trade[]                @relation("Buyer")
+  sellerTrades         Trade[]                @relation("Seller")
   ImageRecord          ImageRecord[]
+  Device               Device[]
+  UserEvent            UserEvent[]
+  UserKucoinAccount    UserKucoinAccount?
+  UserKucoinSubAccount UserKucoinSubAccount[]
 
   @@index([email])
   @@index([username])
@@ -122,10 +177,13 @@ model KycSubmission {
   submittedAt        DateTime  @default(now())
   reviewedAt         DateTime?
   reviewedBy         String?
+  reviewedByAdminId  String?
+  reviewedByAdmin    Admin?    @relation("KycReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
   rejectionReason    String?
   rejectReason       String? // From KuCoin API
   sentToKucoin       Boolean   @default(false)
   sentAt             DateTime?
+  goodForSending     Boolean   @default(false) // To avoid sending if details are not proper
   kucoinSubmissionId String?
   checkedAt          DateTime?
   errorMessage       String?
@@ -138,24 +196,86 @@ model KycSubmission {
   @@index([sentAt])
 }
 
-// API Keys
-model ApiKey {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  apiKey      String    @unique
-  secretKey   String
-  passphrase  String?
-  permissions String[]
-  ipWhitelist String[]
-  isActive    Boolean   @default(true)
-  expiresAt   DateTime?
-  lastUsedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+// User KuCoin Accounts
+model UserKucoinAccount {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountName String   @unique
+  uid         String   @unique
+  level       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // API Key relationship
+  apiKey      UserKucoinApiKey?
+  subAccounts UserKucoinSubAccount[]
 
   @@index([userId])
+  @@index([uid])
+  @@index([accountName])
+}
+
+// User KuCoin API Keys
+model UserKucoinApiKey {
+  id                  String            @id @default(cuid())
+  userKucoinAccountId String            @unique
+  userKucoinAccount   UserKucoinAccount @relation(fields: [userKucoinAccountId], references: [id], onDelete: Cascade)
+  apiKey              String            @unique
+  secretKey           String // Encrypted
+  passphrase          String // Encrypted
+  permissions         String[]
+  ipWhitelist         String[]
+  label               String
+  isActive            Boolean           @default(true)
+  lastUsedAt          DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([userKucoinAccountId])
+  @@index([apiKey])
+}
+
+// User KuCoin Sub Accounts (for user-created sub-accounts)
+model UserKucoinSubAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountName String   @unique
+  uid         String   @unique
+  level       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // API Key relationship
+  apiKeys             UserKucoinSubApiKey[]
+  UserKucoinAccount   UserKucoinAccount?    @relation(fields: [userKucoinAccountId], references: [id])
+  userKucoinAccountId String?
+
+  @@index([userId])
+  @@index([uid])
+  @@index([accountName])
+}
+
+// User KuCoin Sub API Keys (for user-created sub-account APIs)
+model UserKucoinSubApiKey {
+  id                     String               @id @default(cuid())
+  userKucoinSubAccountId String               @unique
+  userKucoinSubAccount   UserKucoinSubAccount @relation(fields: [userKucoinSubAccountId], references: [id], onDelete: Cascade)
+  apiKey                 String               @unique
+  secretKey              String // Encrypted
+  passphrase             String // Encrypted
+  permissions            String[]
+  ipWhitelist            String[]
+  label                  String
+  isActive               Boolean              @default(true)
+  lastUsedAt             DateTime?
+  deletedAt              DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@index([userKucoinSubAccountId])
   @@index([apiKey])
 }
 
@@ -529,6 +649,58 @@ model SystemConfig {
   @@index([key])
 }
 
+model Device {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Device metadata
+  ipAddress String?
+  userAgent String
+  location  Json? // { lat, lng, city, country }
+  timezone  String?
+
+  // Fingerprint (hash of UA + IP + maybe OS for uniqueness)
+  fingerprint String
+
+  // Relationships
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, fingerprint]) // ensures only one device per unique fingerprint
+}
+
+model RefreshToken {
+  id       String @id @default(uuid())
+  deviceId String
+  device   Device @relation(fields: [deviceId], references: [id])
+
+  token     String   @unique // hashed refresh token
+  isActive  Boolean  @default(true)
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// User Events for logging user activities
+model UserEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String   @map("event_type") // e.g., LOGIN, LOGOUT, TRADE, DEPOSIT, WITHDRAWAL, PROFILE_UPDATE, etc.
+  eventData Json?    @map("event_data") // Flexible JSON field for event-specific data
+  metadata  Json? // Additional metadata (IP, user agent, location, etc.)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
+
 // Enum for notification tracker status
 enum NotificationTrackerStatus {
   SUCCESS
@@ -544,4 +716,13 @@ enum ImageType {
   ID_CARD
   BVN
   SELFIE
+}
+
+// Enum for admin roles
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  SUPPORT
+  READONLY
 }
