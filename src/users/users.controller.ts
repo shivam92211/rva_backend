@@ -1,5 +1,18 @@
-import { Controller, Get, Patch, Query, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery, ApiResponse, ApiParam } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Patch,
+  Query,
+  Param,
+  ParseIntPipe,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiParam,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -9,11 +22,37 @@ export class UsersController {
 
   @Get()
   @ApiOperation({ summary: 'Get paginated list of users' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number (default: 1)', example: 1 })
-  @ApiQuery({ name: 'limit', required: false, description: 'Number of users per page (default: 10, max: 100)', example: 10 })
-  @ApiQuery({ name: 'search', required: false, description: 'Search term for username, email, firstName, or lastName', example: 'john' })
-  @ApiQuery({ name: 'status', required: false, description: 'Filter by user status: active or inactive', example: 'active' })
-  @ApiQuery({ name: 'whitelist', required: false, description: 'Filter by withdrawal whitelist status: whitelisted or not_whitelisted', example: 'whitelisted' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Number of users per page (default: 10, max: 100)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    description: 'Search term for username, email, firstName, or lastName',
+    example: 'john',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter by user status: active or inactive',
+    example: 'active',
+  })
+  @ApiQuery({
+    name: 'whitelist',
+    required: false,
+    description:
+      'Filter by withdrawal whitelist status: whitelisted or not_whitelisted',
+    example: 'whitelisted',
+  })
   @ApiResponse({
     status: 200,
     description: 'Successfully retrieved users with pagination',
@@ -42,11 +81,15 @@ export class UsersController {
               isActive: { type: 'boolean', example: true },
               isFrozen: { type: 'boolean', example: false },
               isGoogle2FAEnabled: { type: 'boolean', example: false },
-              lastLoginAt: { type: 'string', format: 'date-time', nullable: true },
+              lastLoginAt: {
+                type: 'string',
+                format: 'date-time',
+                nullable: true,
+              },
               createdAt: { type: 'string', format: 'date-time' },
-              updatedAt: { type: 'string', format: 'date-time' }
-            }
-          }
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
         },
         pagination: {
           type: 'object',
@@ -56,11 +99,11 @@ export class UsersController {
             totalCount: { type: 'number', example: 50 },
             limit: { type: 'number', example: 10 },
             hasNextPage: { type: 'boolean', example: true },
-            hasPrevPage: { type: 'boolean', example: false }
-          }
-        }
-      }
-    }
+            hasPrevPage: { type: 'boolean', example: false },
+          },
+        },
+      },
+    },
   })
   async getUsers(
     @Query('page', new ParseIntPipe({ optional: true })) page: number = 1,
@@ -73,7 +116,13 @@ export class UsersController {
     const validPage = Math.max(1, page);
     const validLimit = Math.min(Math.max(1, limit), 100); // Max 100 users per page
 
-    return this.usersService.getUsers(validPage, validLimit, search, status, whitelist);
+    return this.usersService.getUsers(
+      validPage,
+      validLimit,
+      search,
+      status,
+      whitelist,
+    );
   }
 
   @Patch(':id/toggle-status')
@@ -87,13 +136,16 @@ export class UsersController {
       properties: {
         id: { type: 'string', example: 'clx123user456789' },
         isActive: { type: 'boolean', example: false },
-        message: { type: 'string', example: 'User status updated successfully' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'User status updated successfully',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found'
+    description: 'User not found',
   })
   async toggleUserStatus(@Param('id') id: string) {
     return this.usersService.toggleUserStatus(id);
@@ -110,13 +162,16 @@ export class UsersController {
       properties: {
         id: { type: 'string', example: 'clx123user456789' },
         withdrawalWhitelist: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'User withdrawal whitelist updated successfully' }
-      }
-    }
+        message: {
+          type: 'string',
+          example: 'User withdrawal whitelist updated successfully',
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found'
+    description: 'User not found',
   })
   async toggleWithdrawalWhitelist(@Param('id') id: string) {
     return this.usersService.toggleWithdrawalWhitelist(id);
@@ -150,13 +205,13 @@ export class UsersController {
         isGoogle2FAEnabled: { type: 'boolean', example: false },
         lastLoginAt: { type: 'string', format: 'date-time', nullable: true },
         createdAt: { type: 'string', format: 'date-time' },
-        updatedAt: { type: 'string', format: 'date-time' }
-      }
-    }
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found'
+    description: 'User not found',
   })
   async getUserById(@Param('id') id: string) {
     return this.usersService.getUserById(id);
@@ -179,18 +234,24 @@ export class UsersController {
             properties: {
               id: { type: 'string', example: 'device_001' },
               ipAddress: { type: 'string', example: '192.168.1.100' },
-              userAgent: { type: 'string', example: 'Mozilla/5.0 (Windows NT 10.0...)' },
+              userAgent: {
+                type: 'string',
+                example: 'Mozilla/5.0 (Windows NT 10.0...)',
+              },
               location: {
                 type: 'object',
                 properties: {
                   lat: { type: 'number', example: 40.7128 },
-                  lng: { type: 'number', example: -74.0060 },
+                  lng: { type: 'number', example: -74.006 },
                   city: { type: 'string', example: 'New York' },
-                  country: { type: 'string', example: 'US' }
-                }
+                  country: { type: 'string', example: 'US' },
+                },
               },
               timezone: { type: 'string', example: 'America/New_York' },
-              fingerprint: { type: 'string', example: 'win_chrome_192168100_001' },
+              fingerprint: {
+                type: 'string',
+                example: 'win_chrome_192168100_001',
+              },
               refreshTokens: {
                 type: 'array',
                 items: {
@@ -199,21 +260,21 @@ export class UsersController {
                     id: { type: 'string', example: 'token_001' },
                     isActive: { type: 'boolean', example: true },
                     expiresAt: { type: 'string', format: 'date-time' },
-                    createdAt: { type: 'string', format: 'date-time' }
-                  }
-                }
+                    createdAt: { type: 'string', format: 'date-time' },
+                  },
+                },
               },
               createdAt: { type: 'string', format: 'date-time' },
-              updatedAt: { type: 'string', format: 'date-time' }
-            }
-          }
-        }
-      }
-    }
+              updatedAt: { type: 'string', format: 'date-time' },
+            },
+          },
+        },
+      },
+    },
   })
   @ApiResponse({
     status: 404,
-    description: 'User not found'
+    description: 'User not found',
   })
   async getUserDevices(@Param('id') id: string) {
     return this.usersService.getUserDevices(id);

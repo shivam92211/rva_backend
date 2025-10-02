@@ -45,7 +45,10 @@ export class AuthService {
         where: { id: admin.id },
         data: {
           failedAttempts: admin.failedAttempts + 1,
-          lockedUntil: admin.failedAttempts >= 4 ? new Date(Date.now() + 30 * 60 * 1000) : null, // Lock for 30 minutes after 5 failed attempts
+          lockedUntil:
+            admin.failedAttempts >= 4
+              ? new Date(Date.now() + 30 * 60 * 1000)
+              : null, // Lock for 30 minutes after 5 failed attempts
         },
       });
       throw new UnauthorizedException('Invalid email or password');
@@ -77,7 +80,11 @@ export class AuthService {
     return result;
   }
 
-  async login(admin: Admin, ip: string, userAgent: string): Promise<{ access_token: string; admin: Omit<Admin, 'password'> }> {
+  async login(
+    admin: Admin,
+    ip: string,
+    userAgent: string,
+  ): Promise<{ access_token: string; admin: Omit<Admin, 'password'> }> {
     const payload: JwtPayload = {
       sub: admin.id,
       email: admin.email,

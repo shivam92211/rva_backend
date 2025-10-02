@@ -23,6 +23,7 @@ model NotificationTracker {
   uniqueKey String?                   @unique @map("unique_key") // For deduping one-time messages (e.g. welcome:userId)
   createdAt DateTime                  @default(now())
   updatedAt DateTime                  @updatedAt
+  seenAt    DateTime?                 @map("seen_at") // When user saw the notification (for in-app)
 
   @@index([userId])
   @@index([eventType])
@@ -30,58 +31,6 @@ model NotificationTracker {
   @@index([status])
   @@index([sentAt])
   @@index([uniqueKey])
-}
-
-// Admin Management
-model Admin {
-  id             String    @id @default(cuid())
-  name           String
-  email          String    @unique
-  password       String // Hashed password
-  role           AdminRole @default(ADMIN)
-  permissions    String[] // Array of permission strings
-  isActive       Boolean   @default(true)
-  lastLoginAt    DateTime?
-  failedAttempts Int       @default(0)
-  lockedUntil    DateTime?
-  profilePicture String?   @db.VarChar(1024)
-  phone          String?
-  department     String?
-  createdBy      String? // Admin ID who created this admin
-  creator        Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
-  createdAdmins  Admin[]   @relation("AdminCreator")
-  deletedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  // Relations
-  adminLogs  AdminLog[]
-  kycReviews KycSubmission[] @relation("KycReviewer")
-
-  @@index([email])
-  @@index([isActive])
-  @@index([role])
-  @@index([createdAt])
-}
-
-// Admin Activity Logs
-model AdminLog {
-  id         String   @id @default(cuid())
-  adminId    String
-  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  action     String // e.g., LOGIN, LOGOUT, KYC_APPROVE, KYC_REJECT, USER_FREEZE, etc.
-  resource   String? // e.g., USER, KYC, SYSTEM_CONFIG
-  resourceId String? // ID of the affected resource
-  details    Json? // Additional details about the action
-  ipAddress  String
-  userAgent  String
-  createdAt  DateTime @default(now())
-
-  @@index([adminId])
-  @@index([action])
-  @@index([resource])
-  @@index([createdAt])
-  @@index([adminId, createdAt])
 }
 
 // User Management
@@ -111,27 +60,27 @@ model User {
   updatedAt           DateTime  @updatedAt
 
   // Relations
-  wallets              Wallet[]
-  spotOrders           SpotOrder[]
-  marginOrders         MarginOrder[]
-  marginAccounts       MarginAccount[]
-  deposits             Deposit[]
-  withdrawals          Withdrawal[]
-  userSettings         UserSettings?
-  loginHistory         LoginHistory[]
-  kycSubmissions       KycSubmission[]
-  referralCodes        ReferralCode[]
-  referrals            Referral[]             @relation("Referrer")
-  referredBy           Referral?              @relation("Referred")
-  notifications        Notification[]
-  notificationTrackers NotificationTracker[]
-  buyerTrades          Trade[]                @relation("Buyer")
-  sellerTrades         Trade[]                @relation("Seller")
-  ImageRecord          ImageRecord[]
-  Device               Device[]
-  UserEvent            UserEvent[]
-  UserKucoinAccount    UserKucoinAccount?
-  UserKucoinSubAccount UserKucoinSubAccount[]
+  spotOrders                  SpotOrder[]
+  deposits                    Deposit[]
+  withdrawals                 Withdrawal[]
+  beneficiaryAddresses        BeneficiaryWalletAddress[]
+  userSettings                UserSettings?
+  loginHistory                LoginHistory[]
+  kycSubmissions              KycSubmission[]
+  referralCodes               ReferralCode[]
+  referrals                   Referral[]                    @relation("Referrer")
+  referredBy                  Referral?                     @relation("Referred")
+  notifications               Notification[]
+  notificationTrackers        NotificationTracker[]
+  ImageRecord                 ImageRecord[]
+  Device                      Device[]
+  UserEvent                   UserEvent[]
+  UserKucoinAccount           UserKucoinAccount?
+  UserKucoinSubAccount        UserKucoinSubAccount[]
+  UserKucoinDepositAddress    UserKucoinDepositAddress[]
+  TradeHistory                TradeHistory[]
+  UserKucoinDepositHistory    UserKucoinDepositHistory[]
+  UserKucoinWithdrawalHistory UserKucoinWithdrawalHistory[]
 
   @@index([email])
   @@index([username])
@@ -177,8 +126,6 @@ model KycSubmission {
   submittedAt        DateTime  @default(now())
   reviewedAt         DateTime?
   reviewedBy         String?
-  reviewedByAdminId  String?
-  reviewedByAdmin    Admin?    @relation("KycReviewer", fields: [reviewedByAdminId], references: [id], onDelete: SetNull)
   rejectionReason    String?
   rejectReason       String? // From KuCoin API
   sentToKucoin       Boolean   @default(false)
@@ -242,6 +189,7 @@ model UserKucoinSubAccount {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  password    String // Encrypted
   accountName String   @unique
   uid         String   @unique
   level       Int      @default(0)
@@ -279,235 +227,191 @@ model UserKucoinSubApiKey {
   @@index([apiKey])
 }
 
-// Trading Assets
-model Asset {
+// User KuCoin Deposit Addresses
+model UserKucoinDepositAddress {
   id              String   @id @default(cuid())
-  symbol          String   @unique
-  name            String
-  decimals        Int      @default(8)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address         String
+  balance         Decimal  @default(0) @db.Decimal(32, 16)
+  memo            String?
+  chainId         String   @map("chain_id")
+  chainName       String   @map("chain_name")
+  currency        String
+  contractAddress String?  @map("contract_address")
+  to              String   @default("TRADE")
+  expirationDate  BigInt   @default(0) @map("expiration_date")
   isActive        Boolean  @default(true)
-  isFiat          Boolean  @default(false)
-  isStableCoin    Boolean  @default(false)
-  blockchain      String?
-  contractAddress String?
-  logo            String?
-  color           String?
-  minDeposit      Decimal  @default(0) @db.Decimal(32, 16)
-  minWithdrawal   Decimal  @default(0) @db.Decimal(32, 16)
-  withdrawalFee   Decimal  @default(0) @db.Decimal(32, 16)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  notified        Boolean  @default(false)
 
-  wallets           Wallet[]
-  deposits          Deposit[]
-  withdrawals       Withdrawal[]
-  baseTradingPairs  TradingPair[] @relation("BaseAsset")
-  quoteTradingPairs TradingPair[] @relation("QuoteAsset")
-
-  @@index([symbol])
-  @@index([isActive])
-}
-
-// Trading Pairs
-model TradingPair {
-  id                String   @id @default(cuid())
-  symbol            String   @unique
-  baseAssetId       String
-  quoteAssetId      String
-  baseAsset         Asset    @relation("BaseAsset", fields: [baseAssetId], references: [id])
-  quoteAsset        Asset    @relation("QuoteAsset", fields: [quoteAssetId], references: [id])
-  minOrderSize      Decimal  @db.Decimal(32, 16)
-  maxOrderSize      Decimal  @db.Decimal(32, 16)
-  minOrderValue     Decimal  @db.Decimal(32, 16)
-  pricePrecision    Int
-  quantityPrecision Int
-  isActive          Boolean  @default(true)
-  isMarginEnabled   Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  spotOrders       SpotOrder[]
-  marginOrders     MarginOrder[]
-  trades           Trade[]
-  orderBookEntries OrderBookEntry[]
-  klineData        KlineData[]
-  marginAccounts   MarginAccount[]
-
-  @@index([symbol])
-  @@index([isActive])
-  @@index([isMarginEnabled])
-}
-
-// User Wallets
-model Wallet {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assetId   String
-  asset     Asset    @relation(fields: [assetId], references: [id])
-  balance   Decimal  @default(0) @db.Decimal(32, 16)
-  locked    Decimal  @default(0) @db.Decimal(32, 16)
-  borrowed  Decimal  @default(0) @db.Decimal(32, 16)
-  address   String?  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, assetId])
   @@index([userId])
-  @@index([assetId])
+  @@index([currency])
+  @@index([chainId])
+  @@index([address])
+  @@index([userId, currency, chainId])
+}
+
+// User KuCoin Deposit History
+model UserKucoinDepositHistory {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency          String
+  chain             String   @default("")
+  status            String
+  address           String
+  memo              String?
+  isInner           Boolean  @default(false) @map("is_inner")
+  amount            Decimal  @db.Decimal(32, 16)
+  fee               Decimal  @default(0) @db.Decimal(32, 16)
+  walletTxId        String?  @map("wallet_tx_id")
+  createdAt         BigInt   @map("created_at")
+  updatedAt         BigInt   @map("updated_at")
+  remark            String?
+  arrears           Boolean  @default(false)
+  kucoinDepositId   String?  @map("kucoin_deposit_id")
+  syncedAt          DateTime @default(now()) @map("synced_at")
+  lastScanTimestamp BigInt?  @map("last_scan_timestamp")
+  notified          Boolean  @default(false)
+
+  @@unique([userId, kucoinDepositId])
+  @@index([userId])
+  @@index([currency])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([userId, currency, createdAt])
+}
+
+// User KuCoin Withdrawal History
+model UserKucoinWithdrawalHistory {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency             String
+  chain                String   @default("")
+  status               String
+  address              String
+  memo                 String?
+  isInner              Boolean  @default(false) @map("is_inner")
+  amount               Decimal  @db.Decimal(32, 16)
+  fee                  Decimal  @default(0) @db.Decimal(32, 16)
+  walletTxId           String?  @map("wallet_tx_id")
+  createdAt            BigInt   @map("created_at")
+  updatedAt            BigInt   @map("updated_at")
+  remark               String?
+  withdrawalId         String?  @map("withdrawal_id")
+  internalWithdrawalId String?  @map("internal_withdrawal_id")
+  syncedAt             DateTime @default(now()) @map("synced_at")
+  lastScanTimestamp    BigInt?  @map("last_scan_timestamp")
+  notified             Boolean  @default(false)
+
+  @@unique([userId, withdrawalId])
+  @@index([userId])
+  @@index([currency])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([userId, currency, createdAt])
 }
 
 // Spot Orders
 model SpotOrder {
-  id                String      @id @default(cuid())
+  id                String   @id @default(cuid())
+  orderId           String   @unique @map("order_id") // KuCoin order ID
   userId            String
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tradingPairId     String
-  tradingPair       TradingPair @relation(fields: [tradingPairId], references: [id])
-  side              String
-  type              String
-  status            String      @default("NEW")
-  timeInForce       String      @default("GTC")
-  price             Decimal?    @db.Decimal(32, 16)
-  quantity          Decimal     @db.Decimal(32, 16)
-  filledQuantity    Decimal     @default(0) @db.Decimal(32, 16)
-  remainingQuantity Decimal     @db.Decimal(32, 16)
-  stopPrice         Decimal?    @db.Decimal(32, 16)
-  fee               Decimal     @default(0) @db.Decimal(32, 16)
-  feeAsset          String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientOid         String?  @map("client_oid") // Client order ID
+  symbol            String // Trading pair symbol (e.g., "BTC-USDT", "ETH-USDT")
+  side              String? // Order side: "buy" or "sell"
+  type              String? // Order type: "limit", "market", "stop", "stop_limit"
+  status            String?  @default("NEW") // Order status: "NEW", "OPEN", "MATCH", "DONE", "CANCELED", "RECEIVED", "UPDATE"
+  timeInForce       String?  @default("GTC") @map("time_in_force") // Time in force: "GTC", "GTT", "IOC", "FOK"
+  price             Decimal? @db.Decimal(32, 16) // Order price (for limit orders)
+  quantity          Decimal? @db.Decimal(32, 16) // Total order quantity
+  filledQuantity    Decimal  @default(0) @map("filled_quantity") @db.Decimal(32, 16) // Filled quantity
+  remainingQuantity Decimal  @default(0) @map("remaining_quantity") @db.Decimal(32, 16) // Remaining quantity
+  stopPrice         Decimal? @map("stop_price") @db.Decimal(32, 16) // Stop price (for stop orders)
+  funds             Decimal? @db.Decimal(32, 16) // Funds amount (for market orders)
+  fee               Decimal  @default(0) @db.Decimal(32, 16) // Trading fee
+  feeAsset          String?  @map("fee_asset") // Fee asset/currency (e.g., "USDT", "BTC")
+  stp               String? // Self-trade prevention: "CN", "CO", "CB", "DC"
+  remark            String? // Order remark/notes (custom user note)
+  postOnly          Boolean  @default(false) @map("post_only") // Post-only order flag
+  hidden            Boolean  @default(false) // Hidden order flag
+  iceberg           Boolean  @default(false) // Iceberg order flag
+  visibleSize       Decimal? @map("visible_size") @db.Decimal(32, 16) // Visible size for iceberg orders
+  cancelAfter       Int?     @map("cancel_after") // Cancel after time in seconds (for GTT orders)
+  isStopOrder       Boolean  @default(false) @map("is_stop_order") // Whether this is a stop order
+  stopPriceType     String?  @map("stop_price_type") // Stop price type: "TP" (trade price), "IP" (index price), "MP" (mark price)
+  isOcoOrder        Boolean  @default(false) @map("is_oco_order") // Whether this is an OCO order
+  limitPrice        Decimal? @map("limit_price") @db.Decimal(32, 16) // Limit price (for OCO orders)
+  leverage          Decimal? @db.Decimal(5, 2) // Leverage multiplier (for margin orders)
+  tradeType         String   @default("TRADE") @map("trade_type") // Trade type: "TRADE", "MARGIN", "FUTURES", "SPOT"
+  orderSource       String   @default("API") @map("order_source") // Order source: "API", "WEB", "APP", "WS", "SYSTEM"
+  kuCoinResponse    Json?    @map("ku_coin_response") // Full KuCoin API response data
+  operationType     String   @map("operation_type") // Operation type: "ADD", "MODIFY", "CANCEL", "SYNC", "WS_RECEIVED", "WS_OPEN", "WS_MATCH", "WS_UPDATE", "WS_FILLED", "WS_CANCELED"
+  operationStatus   String   @default("SUCCESS") @map("operation_status") // Operation status: "SUCCESS", "FAILED", "PENDING", "PLACED", "ERROR"
+  operationMessage  String?  @map("operation_message") // Error/success message
+  parentOrderId     String?  @map("parent_order_id") // Parent order ID (for modified orders)
+  batchId           String?  @map("batch_id") // Batch operation ID (for batch operations)
+  createdAt         DateTime // Order creation time from KuCoin
+  updatedAt         DateTime @updatedAt // Last update time
+  lastUpdatedAt     DateTime @updatedAt // Last updated time from KuCoin
+  createdAtDB       DateTime @default(now()) // Database record creation time
 
-  trades Trade[]
-
-  @@index([userId])
-  @@index([tradingPairId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// Margin Orders
-model MarginOrder {
-  id                String        @id @default(cuid())
-  userId            String
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tradingPairId     String
-  tradingPair       TradingPair   @relation(fields: [tradingPairId], references: [id])
-  marginAccountId   String
-  marginAccount     MarginAccount @relation(fields: [marginAccountId], references: [id])
-  side              String
-  type              String
-  status            String        @default("NEW")
-  timeInForce       String        @default("GTC")
-  price             Decimal?      @db.Decimal(32, 16)
-  quantity          Decimal       @db.Decimal(32, 16)
-  filledQuantity    Decimal       @default(0) @db.Decimal(32, 16)
-  remainingQuantity Decimal       @db.Decimal(32, 16)
-  leverage          Decimal       @db.Decimal(5, 2)
-  stopPrice         Decimal?      @db.Decimal(32, 16)
-  fee               Decimal       @default(0) @db.Decimal(32, 16)
-  feeAsset          String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-
-  trades Trade[]
+  // Relations
+  tradeHistory TradeHistory[]
 
   @@index([userId])
-  @@index([tradingPairId])
-  @@index([marginAccountId])
+  @@index([orderId])
+  @@index([clientOid])
+  @@index([symbol])
   @@index([status])
+  @@index([operationType])
+  @@index([createdAt])
+  @@index([userId, symbol])
+  @@index([userId, status])
 }
 
-// Margin Accounts
-model MarginAccount {
-  id             String       @id @default(cuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type           String
-  tradingPairId  String?
-  tradingPair    TradingPair? @relation(fields: [tradingPairId], references: [id])
-  totalAsset     Decimal      @default(0) @db.Decimal(32, 16)
-  totalLiability Decimal      @default(0) @db.Decimal(32, 16)
-  netAsset       Decimal      @default(0) @db.Decimal(32, 16)
-  marginRatio    Decimal      @default(0) @db.Decimal(5, 2)
-  riskRate       Decimal      @default(0) @db.Decimal(5, 2)
-  status         String       @default("NORMAL")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+// Trade History
+model TradeHistory {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradeId            BigInt    @unique @map("trade_id") // KuCoin trade ID
+  orderId            String    @map("order_id") // Reference to SpotOrder
+  order              SpotOrder @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  counterOrderId     String    @map("counter_order_id") // Counter order ID
+  symbol             String
+  side               String // buy or sell
+  liquidity          String // taker or maker
+  type               String // limit, market, etc.
+  forceTaker         Boolean   @default(false) @map("force_taker")
+  price              Decimal   @db.Decimal(32, 16)
+  size               Decimal   @db.Decimal(32, 16)
+  funds              Decimal   @db.Decimal(32, 16)
+  fee                Decimal   @db.Decimal(32, 16)
+  feeRate            Decimal   @map("fee_rate") @db.Decimal(10, 6)
+  feeCurrency        String    @map("fee_currency")
+  stop               String?
+  tradeType          String    @default("TRADE") @map("trade_type") // TRADE, MARGIN, etc.
+  taxRate            Decimal   @default(0) @map("tax_rate") @db.Decimal(10, 6)
+  tax                Decimal   @default(0) @db.Decimal(32, 16)
+  createdAt          DateTime
+  createdAtDB        DateTime  @default(now()) @map("created_at")
+  createdAtTimestamp BigInt    @map("created_at_timestamp") // Unix timestamp in milliseconds
 
-  marginOrders MarginOrder[]
-
-  @@unique([userId, type, tradingPairId])
   @@index([userId])
-  @@index([type])
-  @@index([status])
-}
-
-// Executed Trades
-model Trade {
-  id            String       @id @default(cuid())
-  spotOrderId   String?
-  spotOrder     SpotOrder?   @relation(fields: [spotOrderId], references: [id])
-  marginOrderId String?
-  marginOrder   MarginOrder? @relation(fields: [marginOrderId], references: [id])
-  tradingPairId String
-  tradingPair   TradingPair  @relation(fields: [tradingPairId], references: [id])
-  buyerId       String
-  sellerId      String
-  buyer         User         @relation("Buyer", fields: [buyerId], references: [id])
-  seller        User         @relation("Seller", fields: [sellerId], references: [id])
-  side          String
-  price         Decimal      @db.Decimal(32, 16)
-  quantity      Decimal      @db.Decimal(32, 16)
-  amount        Decimal      @db.Decimal(32, 16)
-  buyerFee      Decimal      @default(0) @db.Decimal(32, 16)
-  sellerFee     Decimal      @default(0) @db.Decimal(32, 16)
-  feeAsset      String
-  buyOrderId    String?
-  sellOrderId   String?
-  createdAt     DateTime     @default(now())
-
-  @@index([tradingPairId])
-  @@index([buyerId])
-  @@index([sellerId])
+  @@index([orderId])
+  @@index([symbol])
+  @@index([side])
+  @@index([tradeId])
   @@index([createdAt])
-}
-
-// Order Book Entries
-model OrderBookEntry {
-  id            String      @id @default(cuid())
-  tradingPairId String
-  tradingPair   TradingPair @relation(fields: [tradingPairId], references: [id])
-  side          String
-  price         Decimal     @db.Decimal(32, 16)
-  quantity      Decimal     @db.Decimal(32, 16)
-  isNew         Boolean     @default(true)
-  isUpdate      Boolean     @default(false)
-  isRemove      Boolean     @default(false)
-  createdAt     DateTime    @default(now())
-
-  @@index([tradingPairId, side, price])
-  @@index([createdAt])
-}
-
-// K-line Data
-model KlineData {
-  id            String      @id @default(cuid())
-  tradingPairId String
-  tradingPair   TradingPair @relation(fields: [tradingPairId], references: [id])
-  interval      String
-  openTime      DateTime
-  closeTime     DateTime
-  open          Decimal     @db.Decimal(32, 16)
-  high          Decimal     @db.Decimal(32, 16)
-  low           Decimal     @db.Decimal(32, 16)
-  close         Decimal     @db.Decimal(32, 16)
-  volume        Decimal     @db.Decimal(32, 16)
-  quoteVolume   Decimal     @db.Decimal(32, 16)
-  createdAt     DateTime    @default(now())
-
-  @@unique([tradingPairId, interval, openTime])
-  @@index([tradingPairId, interval, openTime])
+  @@index([symbol, createdAt])
+  @@index([orderId, createdAt])
 }
 
 // Deposits
@@ -515,8 +419,6 @@ model Deposit {
   id                    String   @id @default(cuid())
   userId                String
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assetId               String
-  asset                 Asset    @relation(fields: [assetId], references: [id])
   txHash                String   @unique
   amount                Decimal  @db.Decimal(32, 16)
   confirmations         Int      @default(0)
@@ -528,34 +430,63 @@ model Deposit {
   updatedAt             DateTime @updatedAt
 
   @@index([userId])
-  @@index([assetId])
   @@index([status])
   @@index([txHash])
 }
 
 // Withdrawals
 model Withdrawal {
-  id                String   @id @default(cuid())
+  id                String                    @id @default(cuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assetId           String
-  asset             Asset    @relation(fields: [assetId], references: [id])
-  amount            Decimal  @db.Decimal(32, 16)
-  fee               Decimal  @default(0) @db.Decimal(32, 16)
-  totalAmount       Decimal  @db.Decimal(32, 16)
+  user              User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  beneficiaryId     String?                   @map("beneficiary_id")
+  beneficiary       BeneficiaryWalletAddress? @relation(fields: [beneficiaryId], references: [id])
+  amount            Decimal                   @db.Decimal(32, 16)
+  fee               Decimal                   @default(0) @db.Decimal(32, 16)
+  totalAmount       Decimal                   @db.Decimal(32, 16)
   toAddress         String
   memo              String?
-  status            String   @default("PENDING")
-  txHash            String?  @unique
-  emailVerified     Boolean  @default(false)
-  google2FAVerified Boolean  @default(false)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  status            String                    @default("PENDING")
+  txHash            String?                   @unique
+  emailVerified     Boolean                   @default(false) @map("email_verified")
+  google2FAVerified Boolean                   @default(false) @map("google2fa_verified")
+  createdAt         DateTime                  @default(now()) @map("created_at")
+  updatedAt         DateTime                  @updatedAt @map("updated_at")
+  notified          Boolean                   @default(false)
 
   @@index([userId])
-  @@index([assetId])
   @@index([status])
   @@index([txHash])
+  @@index([beneficiaryId])
+}
+
+// Beneficiary Wallet Addresses
+model BeneficiaryWalletAddress {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String // Display name for the beneficiary
+  address    String // Wallet address
+  memo       String? // Memo/tag for chains that require it
+  chain      String // Blockchain chain (e.g., "BTC", "ETH", "TRC20", "BEP20")
+  currency   String // Currency symbol (e.g., "BTC", "ETH", "USDT")
+  isActive   Boolean   @default(true) @map("is_active")
+  isApproved Boolean   @default(false) @map("is_approved")
+  approvedAt DateTime? @map("approved_at")
+  approvedBy String?   @map("approved_by") // Admin ID who approved
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  withdrawals Withdrawal[]
+
+  @@unique([userId, address, chain])
+  @@index([userId])
+  @@index([address])
+  @@index([chain])
+  @@index([currency])
+  @@index([isActive])
+  @@index([isApproved])
 }
 
 // Login History
@@ -701,11 +632,101 @@ model UserEvent {
   @@index([userId, createdAt])
 }
 
+// Admin Management
+model Admin {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  password       String // Hashed password
+  role           AdminRole @default(ADMIN)
+  permissions    String[] // Array of permission strings
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  profilePicture String?   @db.VarChar(1024)
+  phone          String?
+  department     String?
+  createdBy      String? // Admin ID who created this admin
+  creator        Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
+  createdAdmins  Admin[]   @relation("AdminCreator")
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  adminLogs AdminLog[]
+
+  @@index([email])
+  @@index([isActive])
+  @@index([role])
+  @@index([createdAt])
+}
+
+// Admin Activity Logs
+model AdminLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  action     String // e.g., LOGIN, LOGOUT, KYC_APPROVE, KYC_REJECT, USER_FREEZE, etc.
+  resource   String? // e.g., USER, KYC, SYSTEM_CONFIG
+  resourceId String? // ID of the affected resource
+  details    Json? // Additional details about the action
+  ipAddress  String
+  userAgent  String
+  createdAt  DateTime @default(now())
+
+  @@index([adminId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+  @@index([adminId, createdAt])
+}
+
+// Enum for admin roles
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  SUPPORT
+  READONLY
+}
+
+// Notification Templates for predefined messages
+model NotificationTemplate {
+  id           String   @id @default(cuid())
+  eventType    String   @unique @map("event_type") // e.g. welcome, login_alert, password_reset, etc.
+  title        String // Template title
+  message      String // Template message with placeholders
+  placeholders Json // JSON object describing available placeholders and their descriptions
+  channels     String[] // Available channels: email, sms, push, inapp
+  isActive     Boolean  @default(true) @map("is_active")
+  priority     Int      @default(1) // Priority level for notifications
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([eventType])
+  @@index([isActive])
+}
+
 // Enum for notification tracker status
 enum NotificationTrackerStatus {
   SUCCESS
   FAILED
   PENDING
+}
+
+// Logo storage for crypto tokens
+model Logo {
+  id        String   @id @default(cuid())
+  token     String   @unique // Token symbol like BTC, ETH, SOL
+  name      String // Logo name/filename
+  data      String   @db.Text // Base64 encoded webp image data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([token])
+  @@index([createdAt])
 }
 
 // Enum for image types
@@ -716,13 +737,4 @@ enum ImageType {
   ID_CARD
   BVN
   SELFIE
-}
-
-// Enum for admin roles
-enum AdminRole {
-  SUPER_ADMIN
-  ADMIN
-  MODERATOR
-  SUPPORT
-  READONLY
 }

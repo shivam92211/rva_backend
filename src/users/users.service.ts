@@ -5,7 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async getUsers(page: number = 1, limit: number = 10, search?: string, status?: string, whitelist?: string) {
+  async getUsers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    status?: string,
+    whitelist?: string,
+  ) {
     const skip = (page - 1) * limit;
 
     // Build filters
@@ -92,7 +98,7 @@ export class UsersService {
     // First, find the user to get current status
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, isActive: true, username: true }
+      select: { id: true, isActive: true, username: true },
     });
 
     if (!user) {
@@ -103,13 +109,13 @@ export class UsersService {
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: { isActive: !user.isActive },
-      select: { id: true, isActive: true, username: true }
+      select: { id: true, isActive: true, username: true },
     });
 
     return {
       id: updatedUser.id,
       isActive: updatedUser.isActive,
-      message: `User ${updatedUser.username} ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`
+      message: `User ${updatedUser.username} ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
     };
   }
 
@@ -117,7 +123,7 @@ export class UsersService {
     // First, find the user to get current whitelist status
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, withdrawalWhitelist: true, username: true }
+      select: { id: true, withdrawalWhitelist: true, username: true },
     });
 
     if (!user) {
@@ -128,13 +134,13 @@ export class UsersService {
     const updatedUser = await this.prisma.user.update({
       where: { id },
       data: { withdrawalWhitelist: !user.withdrawalWhitelist },
-      select: { id: true, withdrawalWhitelist: true, username: true }
+      select: { id: true, withdrawalWhitelist: true, username: true },
     });
 
     return {
       id: updatedUser.id,
       withdrawalWhitelist: updatedUser.withdrawalWhitelist,
-      message: `User ${updatedUser.username} ${updatedUser.withdrawalWhitelist ? 'added to' : 'removed from'} withdrawal whitelist successfully`
+      message: `User ${updatedUser.username} ${updatedUser.withdrawalWhitelist ? 'added to' : 'removed from'} withdrawal whitelist successfully`,
     };
   }
 
@@ -176,7 +182,7 @@ export class UsersService {
     // First check if user exists
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!user) {
@@ -193,21 +199,21 @@ export class UsersService {
             isActive: true,
             expiresAt: true,
             createdAt: true,
-            updatedAt: true
+            updatedAt: true,
           },
           orderBy: {
-            createdAt: 'desc'
-          }
-        }
+            createdAt: 'desc',
+          },
+        },
       },
       orderBy: {
-        updatedAt: 'desc'
-      }
+        updatedAt: 'desc',
+      },
     });
 
     return {
       userId: id,
-      devices: devices.map(device => ({
+      devices: devices.map((device) => ({
         id: device.id,
         ipAddress: device.ipAddress,
         userAgent: device.userAgent,
@@ -216,9 +222,8 @@ export class UsersService {
         fingerprint: device.fingerprint,
         refreshTokens: device.refreshTokens,
         createdAt: device.createdAt,
-        updatedAt: device.updatedAt
-      }))
+        updatedAt: device.updatedAt,
+      })),
     };
   }
-
 }

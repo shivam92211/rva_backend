@@ -5,7 +5,13 @@ import { PrismaClient } from '@prisma/client';
 export class KycSubmissionsService {
   private prisma = new PrismaClient();
 
-  async getKycSubmissions(page: number = 1, limit: number = 10, search?: string, status?: string, level?: string) {
+  async getKycSubmissions(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    status?: string,
+    level?: string,
+  ) {
     const skip = (page - 1) * limit;
 
     // Build filters
@@ -18,13 +24,14 @@ export class KycSubmissionsService {
         { lastName: { contains: search, mode: 'insensitive' as const } },
         { idNumber: { contains: search, mode: 'insensitive' as const } },
         { nationality: { contains: search, mode: 'insensitive' as const } },
-        { user: {
+        {
+          user: {
             OR: [
               { email: { contains: search, mode: 'insensitive' as const } },
               { username: { contains: search, mode: 'insensitive' as const } },
-            ]
-          }
-        }
+            ],
+          },
+        },
       ];
     }
 
@@ -55,8 +62,8 @@ export class KycSubmissionsService {
               isEmailVerified: true,
               isPhoneVerified: true,
               isKycVerified: true,
-            }
-          }
+            },
+          },
         },
         orderBy: {
           submittedAt: 'desc',
@@ -99,9 +106,9 @@ export class KycSubmissionsService {
             isEmailVerified: true,
             isPhoneVerified: true,
             isKycVerified: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     if (!kycSubmission) {
@@ -111,10 +118,15 @@ export class KycSubmissionsService {
     return kycSubmission;
   }
 
-  async updateKycSubmissionStatus(id: string, status: string, reviewedBy?: string, rejectionReason?: string) {
+  async updateKycSubmissionStatus(
+    id: string,
+    status: string,
+    reviewedBy?: string,
+    rejectionReason?: string,
+  ) {
     const kycSubmission = await this.prisma.kycSubmission.findUnique({
       where: { id },
-      select: { id: true, status: true, user: { select: { username: true } } }
+      select: { id: true, status: true, user: { select: { username: true } } },
     });
 
     if (!kycSubmission) {
@@ -138,15 +150,15 @@ export class KycSubmissionsService {
         user: {
           select: {
             username: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     return {
       id: updatedSubmission.id,
       status: updatedSubmission.status,
-      message: `KYC submission for ${updatedSubmission.user.username} ${status.toLowerCase()} successfully`
+      message: `KYC submission for ${updatedSubmission.user.username} ${status.toLowerCase()} successfully`,
     };
   }
 

@@ -1,5 +1,19 @@
-import { Controller, Request, Post, UseGuards, Body, Ip, Headers, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Request,
+  Post,
+  UseGuards,
+  Body,
+  Ip,
+  Headers,
+  Get,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -25,7 +39,11 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    return this.authService.login(req.user, ip || 'unknown', userAgent || 'unknown');
+    return this.authService.login(
+      req.user,
+      ip || 'unknown',
+      userAgent || 'unknown',
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -38,7 +56,11 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    await this.authService.logout(req.user.id, ip || 'unknown', userAgent || 'unknown');
+    await this.authService.logout(
+      req.user.id,
+      ip || 'unknown',
+      userAgent || 'unknown',
+    );
     return { message: 'Logout successful' };
   }
 
