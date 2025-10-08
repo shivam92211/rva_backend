@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  cex-postgres:
+    image: postgres:14.9
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: kucoin_trading
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # cex-engine-postgres:
+  #   image: postgres:14.9
+  #   environment:
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: cex_engine
+  #   ports:
+  #     - "5433:5432"
+  #   volumes:
+  #     - postgres_data_engine:/var/lib/postgresql/data
+
+  cex-redis:
+    image: redis:8.0.2-alpine
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=gaalileo
+    volumes:
+      - redis_data:/data
+
+  # cex-engine-redis:
+  #   image: redis:8.0.2-alpine
+  #   ports:
+  #     - "6380:6379"
+  #   environment:
+  #     - REDIS_PASSWORD=gaalileo
+  #   volumes:
+  #     - redis_data_engine:/data
+
+volumes:
+  postgres_data:
+  # postgres_data_engine:
+  redis_data:
+  # redis_data_engine:

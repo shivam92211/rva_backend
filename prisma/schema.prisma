@@ -81,6 +81,8 @@ model User {
   TradeHistory                TradeHistory[]
   UserKucoinDepositHistory    UserKucoinDepositHistory[]
   UserKucoinWithdrawalHistory UserKucoinWithdrawalHistory[]
+  UserKucoinWithdrawalQuota   UserKucoinWithdrawalQuota[]
+  assetHoldingTrends          UserAssetHoldingTrend[]
 
   @@index([email])
   @@index([username])
@@ -98,6 +100,7 @@ model UserSettings {
   enablePushNotifications  Boolean  @default(true)
   enableTradeNotifications Boolean  @default(true)
   enablePriceAlerts        Boolean  @default(true)
+  notificationPreferences  Json? // e.g., { email: ["DEPOSIT", "WITHDRAWAL"], push: ["PRICE_ALERT"] }
   withdrawalWhitelist      String[]
   loginAlertEnabled        Boolean  @default(true)
   createdAt                DateTime @default(now())
@@ -317,6 +320,42 @@ model UserKucoinWithdrawalHistory {
   @@index([userId, currency, createdAt])
 }
 
+// User KuCoin Withdrawal Quotas - Cache withdrawal quota information
+model UserKucoinWithdrawalQuota {
+  id                       String   @id @default(cuid())
+  userId                   String
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency                 String
+  chain                    String   @default("")
+  limitBTCAmount           String   @map("limit_btc_amount")
+  usedBTCAmount            String   @map("used_btc_amount")
+  quotaCurrency            String   @map("quota_currency")
+  limitQuotaCurrencyAmount String   @map("limit_quota_currency_amount")
+  usedQuotaCurrencyAmount  String   @map("used_quota_currency_amount")
+  remainAmount             String   @map("remain_amount")
+  availableAmount          String   @map("available_amount")
+  withdrawMinFee           String   @map("withdraw_min_fee")
+  innerWithdrawMinFee      String   @map("inner_withdraw_min_fee")
+  withdrawMinSize          String   @map("withdraw_min_size")
+  isWithdrawEnabled        Boolean  @map("is_withdraw_enabled")
+  precision                Int
+  chainName                String   @map("chain_name")
+  reason                   String?
+  lockedAmount             String   @map("locked_amount")
+  cachedAt                 DateTime @default(now()) @map("cached_at")
+  expiresAt                DateTime @map("expires_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, currency, chain])
+  @@index([userId])
+  @@index([currency])
+  @@index([chain])
+  @@index([expiresAt])
+  @@index([userId, currency])
+  @@index([userId, expiresAt])
+}
+
 // Spot Orders
 model SpotOrder {
   id                String   @id @default(cuid())
@@ -327,7 +366,7 @@ model SpotOrder {
   symbol            String // Trading pair symbol (e.g., "BTC-USDT", "ETH-USDT")
   side              String? // Order side: "buy" or "sell"
   type              String? // Order type: "limit", "market", "stop", "stop_limit"
-  status            String?  @default("NEW") // Order status: "NEW", "OPEN", "MATCH", "DONE", "CANCELED", "RECEIVED", "UPDATE"
+  status            String?  @default("DONE") // Order status: "NEW", "OPEN", "MATCH", "DONE"
   timeInForce       String?  @default("GTC") @map("time_in_force") // Time in force: "GTC", "GTT", "IOC", "FOK"
   price             Decimal? @db.Decimal(32, 16) // Order price (for limit orders)
   quantity          Decimal? @db.Decimal(32, 16) // Total order quantity
@@ -350,10 +389,10 @@ model SpotOrder {
   limitPrice        Decimal? @map("limit_price") @db.Decimal(32, 16) // Limit price (for OCO orders)
   leverage          Decimal? @db.Decimal(5, 2) // Leverage multiplier (for margin orders)
   tradeType         String   @default("TRADE") @map("trade_type") // Trade type: "TRADE", "MARGIN", "FUTURES", "SPOT"
-  orderSource       String   @default("API") @map("order_source") // Order source: "API", "WEB", "APP", "WS", "SYSTEM"
+  orderSource       String   @default("API") @map("order_source") // Order source: "API", "WS"
   kuCoinResponse    Json?    @map("ku_coin_response") // Full KuCoin API response data
-  operationType     String   @map("operation_type") // Operation type: "ADD", "MODIFY", "CANCEL", "SYNC", "WS_RECEIVED", "WS_OPEN", "WS_MATCH", "WS_UPDATE", "WS_FILLED", "WS_CANCELED"
-  operationStatus   String   @default("SUCCESS") @map("operation_status") // Operation status: "SUCCESS", "FAILED", "PENDING", "PLACED", "ERROR"
+  operationType     String   @map("operation_type") // Operation type: "CANCEL", "SYNC", "PLACE"
+  operationStatus   String   @default("SUCCESS") @map("operation_status") // Operation status: "SUCCESS", "FAILED"
   operationMessage  String?  @map("operation_message") // Error/success message
   parentOrderId     String?  @map("parent_order_id") // Parent order ID (for modified orders)
   batchId           String?  @map("batch_id") // Batch operation ID (for batch operations)
@@ -634,33 +673,55 @@ model UserEvent {
 
 // Admin Management
 model Admin {
-  id             String    @id @default(cuid())
-  name           String
-  email          String    @unique
-  password       String // Hashed password
-  role           AdminRole @default(ADMIN)
-  permissions    String[] // Array of permission strings
-  isActive       Boolean   @default(true)
-  lastLoginAt    DateTime?
-  failedAttempts Int       @default(0)
-  lockedUntil    DateTime?
-  profilePicture String?   @db.VarChar(1024)
-  phone          String?
-  department     String?
-  createdBy      String? // Admin ID who created this admin
-  creator        Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
-  createdAdmins  Admin[]   @relation("AdminCreator")
-  deletedAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  password         String // Hashed password
+  role             AdminRole @default(ADMIN)
+  permissions      String[] // Array of permission strings
+  isActive         Boolean   @default(true)
+  lastLoginAt      DateTime?
+  failedAttempts   Int       @default(0)
+  lockedUntil      DateTime?
+  profilePicture   String?   @db.VarChar(1024)
+  phone            String?
+  department       String?
+  isGoogle2FAEnabled Boolean @default(false)
+  google2FASecret  String?
+  createdBy        String? // Admin ID who created this admin
+  creator          Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
+  createdAdmins    Admin[]   @relation("AdminCreator")
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relations
-  adminLogs AdminLog[]
+  adminLogs         AdminLog[]
+  adminRefreshTokens AdminRefreshToken[]
 
   @@index([email])
   @@index([isActive])
   @@index([role])
   @@index([createdAt])
+}
+
+// Admin Refresh Tokens for secure token rotation
+model AdminRefreshToken {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  token     String   @unique // Hashed refresh token
+  isActive  Boolean  @default(true)
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([adminId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isActive])
 }
 
 // Admin Activity Logs
@@ -727,6 +788,24 @@ model Logo {
 
   @@index([token])
   @@index([createdAt])
+}
+
+// User Asset Holding Trends - Store daily snapshots of user asset holdings
+model UserAssetHoldingTrend {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime @db.Date // Store as DATE type for daily aggregation
+  totalUsdWorth   Decimal  @default(0) @map("total_usd_worth") @db.Decimal(32, 16)
+  balanceSnapshot Json // JSON object containing detailed balance information
+  currencyCount   Int      @default(0) @map("currency_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@index([userId, date])
 }
 
 // Enum for image types

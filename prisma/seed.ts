@@ -16,7 +16,7 @@ async function main() {
       name: 'Super Administrator',
       email: 'superadmin@rva.com',
       password: hashedPassword,
-      role: 'SUPER_ADMIN' as const,
+      role: 'SUPER_ADMIN' as const, 
       permissions: [
         'USER_MANAGEMENT',
         'ADMIN_MANAGEMENT',
