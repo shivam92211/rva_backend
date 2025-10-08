@@ -21,6 +21,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 class LoginDto {
   email: string;
   password: string;
+  recaptchaToken?: string;
 }
 
 @ApiTags('Authentication')
@@ -29,9 +30,9 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @UseGuards(LocalAuthGuard)
-  @Post('login')
-  @ApiOperation({ summary: 'Admin login' })
-  @ApiResponse({ status: 200, description: 'Login successful' })
+  @Post('portal-auth-gate-7a3b9f')
+  @ApiOperation({ summary: 'Admin login (obfuscated endpoint)' })
+  @ApiResponse({ status: 200, description: 'Login successful or 2FA required' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Request() req: any,
@@ -39,11 +40,33 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    return this.authService.login(
+    // Check if reCAPTCHA is required for this IP
+    const ipAddress = ip || 'unknown';
+    if (this.authService.requiresCaptcha(ipAddress)) {
+      if (!loginDto.recaptchaToken) {
+        throw new Error('reCAPTCHA verification required');
+      }
+
+      const isValidCaptcha = await this.authService.verifyRecaptcha(loginDto.recaptchaToken);
+      if (!isValidCaptcha) {
+        throw new Error('Invalid reCAPTCHA');
+      }
+    }
+
+    return this.authService.loginWith2FA(
       req.user,
-      ip || 'unknown',
+      ipAddress,
       userAgent || 'unknown',
     );
+  }
+
+  @Get('captcha-required')
+  @ApiOperation({ summary: 'Check if CAPTCHA is required for this IP' })
+  @ApiResponse({ status: 200, description: 'Returns whether CAPTCHA is required' })
+  async checkCaptchaRequired(@Ip() ip: string) {
+    return {
+      required: this.authService.requiresCaptcha(ip || 'unknown'),
+    };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -85,5 +108,75 @@ export class AuthController {
       admin: req.user,
       message: 'Token is valid',
     };
+  }
+
+  @Post('login-2fa')
+  @ApiOperation({ summary: 'Complete 2FA login' })
+  @ApiResponse({ status: 200, description: '2FA verification successful' })
+  @ApiResponse({ status: 401, description: 'Invalid 2FA code' })
+  async login2FA(
+    @Body() body: { adminId: string; code: string },
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.authService.complete2FALogin(
+      body.adminId,
+      body.code,
+      ip || 'unknown',
+      userAgent || 'unknown',
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/generate')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate 2FA secret and QR code' })
+  @ApiResponse({ status: 200, description: '2FA secret generated' })
+  async generate2FA(@Request() req: any) {
+    return this.authService.generateTwoFactorSecret(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/enable')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Enable 2FA after verifying code' })
+  @ApiResponse({ status: 200, description: '2FA enabled successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid 2FA code' })
+  async enable2FA(@Request() req: any, @Body() body: { code: string }) {
+    return this.authService.enableTwoFactor(req.user.id, body.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/disable')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable 2FA' })
+  @ApiResponse({ status: 200, description: '2FA disabled successfully' })
+  async disable2FA(@Request() req: any) {
+    return this.authService.disableTwoFactor(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('2fa/verify')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify 2FA code' })
+  @ApiResponse({ status: 200, description: '2FA code verification result' })
+  async verify2FA(@Request() req: any, @Body() body: { code: string }) {
+    return this.authService.verifyTwoFactorCode(req.user.id, body.code);
+  }
+
+  @Post('refresh')
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refreshToken(
+    @Body() body: { refresh_token: string },
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.authService.refreshAccessToken(
+      body.refresh_token,
+      ip || 'unknown',
+      userAgent || 'unknown',
+    );
   }
 }
