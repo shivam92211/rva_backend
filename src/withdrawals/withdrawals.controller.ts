@@ -15,7 +15,7 @@ import {
 import { WithdrawalsService } from './withdrawals.service';
 
 @ApiTags('withdrawals')
-@Controller('withdrawals')
+@Controller('api/v1/withdrawals')
 export class WithdrawalsController {
   constructor(private readonly withdrawalsService: WithdrawalsService) {}
 

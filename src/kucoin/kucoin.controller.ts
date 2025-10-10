@@ -32,12 +32,13 @@ import {
   GetDepositDetailDto,
   GetWithdrawDetailDto,
   RebateDownloadDto,
+  CreateTradingPairDto,
 } from './dto/kucoin.dto';
 
 @ApiTags('kucoin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('kucoin')
+@Controller('api/v1/kucoin')
 export class KucoinController {
   private readonly logger = new Logger(KucoinController.name);
 
@@ -264,6 +265,21 @@ export class KucoinController {
       this.logger.error(`Failed to download rebate data: ${error.message}`);
       throw new HttpException(
         `Failed to download rebate data: ${error.message}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('trading-pairs')
+  @ApiOperation({ summary: 'Create a new trading pair' })
+  @ApiResponse({ status: 201, description: 'Trading pair created successfully' })
+  async createTradingPair(@Body() createTradingPairDto: CreateTradingPairDto) {
+    try {
+      return await this.kucoinService.createTradingPair(createTradingPairDto);
+    } catch (error) {
+      this.logger.error(`Failed to create trading pair: ${error.message}`);
+      throw new HttpException(
+        `Failed to create trading pair: ${error.message}`,
         HttpStatus.BAD_REQUEST,
       );
     }

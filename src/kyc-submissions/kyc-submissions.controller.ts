@@ -18,7 +18,7 @@ import {
 import { KycSubmissionsService } from './kyc-submissions.service';
 
 @ApiTags('kyc-submissions')
-@Controller('kyc-submissions')
+@Controller('api/v1/kyc-submissions')
 export class KycSubmissionsController {
   constructor(private readonly kycSubmissionsService: KycSubmissionsService) {}
 

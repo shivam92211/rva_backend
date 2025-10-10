@@ -239,3 +239,95 @@ export class RebateDownloadDto {
   @IsEnum(TradeType)
   tradeType: TradeType;
 }
+
+export class CreateTradingPairDto {
+  @ApiProperty({ description: 'Trading pair symbol (e.g., BTC-USDT)' })
+  @IsString()
+  symbol: string;
+
+  @ApiProperty({ description: 'Base asset (e.g., BTC)' })
+  @IsString()
+  baseAsset: string;
+
+  @ApiProperty({ description: 'Quote asset (e.g., USDT)' })
+  @IsString()
+  quoteAsset: string;
+
+  @ApiProperty({ description: 'Base asset decimal precision' })
+  @IsNumber()
+  baseAssetPrecision: number;
+
+  @ApiProperty({ description: 'Quote asset decimal precision' })
+  @IsNumber()
+  quoteAssetPrecision: number;
+
+  @ApiProperty({ description: 'Minimum order size' })
+  @IsString()
+  minOrderSize: string;
+
+  @ApiProperty({ description: 'Minimum order value' })
+  @IsString()
+  minOrderValue: string;
+
+  @ApiPropertyOptional({ description: 'Maximum order size' })
+  @IsOptional()
+  @IsString()
+  maxOrderSize?: string;
+
+  @ApiPropertyOptional({ description: 'Maximum order value' })
+  @IsOptional()
+  @IsString()
+  maxOrderValue?: string;
+
+  @ApiProperty({ description: 'Tick size (minimum price increment)' })
+  @IsString()
+  tickSize: string;
+
+  @ApiProperty({ description: 'Lot size (minimum quantity increment)' })
+  @IsString()
+  lotSize: string;
+
+  @ApiProperty({ description: 'Maker fee rate (percentage)' })
+  @IsString()
+  makerFeeRate: string;
+
+  @ApiProperty({ description: 'Taker fee rate (percentage)' })
+  @IsString()
+  takerFeeRate: string;
+
+  @ApiPropertyOptional({ description: 'Trading pair status', default: 'ACTIVE' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({ description: 'Enable market orders', default: true })
+  @IsOptional()
+  isMarketOrderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable limit orders', default: true })
+  @IsOptional()
+  isLimitOrderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable stop orders', default: false })
+  @IsOptional()
+  isStopOrderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable iceberg orders', default: false })
+  @IsOptional()
+  isIcebergOrderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Enable hidden orders', default: false })
+  @IsOptional()
+  isHiddenOrderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: 'Trading pair description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Trading pair tags', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+}

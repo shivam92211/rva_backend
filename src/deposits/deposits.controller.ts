@@ -15,7 +15,7 @@ import {
 import { DepositsService } from './deposits.service';
 
 @ApiTags('deposits')
-@Controller('deposits')
+@Controller('api/v1/deposits')
 export class DepositsController {
   constructor(private readonly depositsService: DepositsService) {}
 

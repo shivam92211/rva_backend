@@ -30,6 +30,7 @@ import {
   GetDepositDetailDto,
   GetWithdrawDetailDto,
   RebateDownloadDto,
+  CreateTradingPairDto,
 } from './dto/kucoin.dto';
 
 @Injectable()
@@ -316,5 +317,41 @@ export class KucoinService {
       null,
       params,
     );
+  }
+
+  async createTradingPair(data: CreateTradingPairDto): Promise<any> {
+    const engineBaseUrl = this.configService.get<string>('ENGINE_BASE_URL') || 'https://engine.rvaexchange.net';
+    const adminToken = this.configService.get<string>('ENGINE_ADMIN_TOKEN');
+
+    if (!adminToken) {
+      throw new Error('ENGINE_ADMIN_TOKEN is not configured');
+    }
+
+    try {
+      const config: AxiosRequestConfig = {
+        method: 'POST',
+        url: `${engineBaseUrl}/api/v1/cex/admin/trading-pairs`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+        },
+        data,
+        timeout: 30000,
+      };
+
+      this.logger.debug(`Creating trading pair: ${data.symbol}`);
+
+      const response = await firstValueFrom(
+        this.httpService.request(config),
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Failed to create trading pair: ${error.message}`,
+        error.stack,
+      );
+      throw error;
+    }
   }
 }
