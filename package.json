@@ -1,12 +1,16 @@
 {
   "name": "rva_admin_backend",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "This is the backend for admin panel of rva cex admin panel",
+  "author": {
+    "name": "Gaurav Vashwakarma",
+    "email": "hi@gaurav.one"
+  },
   "private": true,
-  "license": "UNLICENSED",
+  "license": "BUSL-1.1",
   "scripts": {
     "build": "nest build",
+    "dev": "bunx nest start --watch",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "deploy": "bunx pm2 start --name admincex 'bun run start' ",

@@ -78,7 +78,6 @@ model User {
   UserKucoinAccount           UserKucoinAccount?
   UserKucoinSubAccount        UserKucoinSubAccount[]
   UserKucoinDepositAddress    UserKucoinDepositAddress[]
-  TradeHistory                TradeHistory[]
   UserKucoinDepositHistory    UserKucoinDepositHistory[]
   UserKucoinWithdrawalHistory UserKucoinWithdrawalHistory[]
   UserKucoinWithdrawalQuota   UserKucoinWithdrawalQuota[]
@@ -248,6 +247,8 @@ model UserKucoinDepositAddress {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   notified        Boolean  @default(false)
+  cexHoldBalance  Decimal  @default(0) @map("cex_hold_balance") @db.Decimal(32, 16)
+  cexDebtBalance  Decimal  @default(0) @map("cex_debt_balance") @db.Decimal(32, 16)
 
   @@index([userId])
   @@index([currency])
@@ -400,9 +401,7 @@ model SpotOrder {
   updatedAt         DateTime @updatedAt // Last update time
   lastUpdatedAt     DateTime @updatedAt // Last updated time from KuCoin
   createdAtDB       DateTime @default(now()) // Database record creation time
-
-  // Relations
-  tradeHistory TradeHistory[]
+  syncCount         Int      @default(3) @map("sync_count") // Number of times to sync the status
 
   @@index([userId])
   @@index([orderId])
@@ -413,44 +412,6 @@ model SpotOrder {
   @@index([createdAt])
   @@index([userId, symbol])
   @@index([userId, status])
-}
-
-// Trade History
-model TradeHistory {
-  id                 String    @id @default(cuid())
-  userId             String
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tradeId            BigInt    @unique @map("trade_id") // KuCoin trade ID
-  orderId            String    @map("order_id") // Reference to SpotOrder
-  order              SpotOrder @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
-  counterOrderId     String    @map("counter_order_id") // Counter order ID
-  symbol             String
-  side               String // buy or sell
-  liquidity          String // taker or maker
-  type               String // limit, market, etc.
-  forceTaker         Boolean   @default(false) @map("force_taker")
-  price              Decimal   @db.Decimal(32, 16)
-  size               Decimal   @db.Decimal(32, 16)
-  funds              Decimal   @db.Decimal(32, 16)
-  fee                Decimal   @db.Decimal(32, 16)
-  feeRate            Decimal   @map("fee_rate") @db.Decimal(10, 6)
-  feeCurrency        String    @map("fee_currency")
-  stop               String?
-  tradeType          String    @default("TRADE") @map("trade_type") // TRADE, MARGIN, etc.
-  taxRate            Decimal   @default(0) @map("tax_rate") @db.Decimal(10, 6)
-  tax                Decimal   @default(0) @db.Decimal(32, 16)
-  createdAt          DateTime
-  createdAtDB        DateTime  @default(now()) @map("created_at")
-  createdAtTimestamp BigInt    @map("created_at_timestamp") // Unix timestamp in milliseconds
-
-  @@index([userId])
-  @@index([orderId])
-  @@index([symbol])
-  @@index([side])
-  @@index([tradeId])
-  @@index([createdAt])
-  @@index([symbol, createdAt])
-  @@index([orderId, createdAt])
 }
 
 // Deposits
@@ -485,13 +446,14 @@ model Withdrawal {
   totalAmount       Decimal                   @db.Decimal(32, 16)
   toAddress         String
   memo              String?
-  status            String                    @default("PENDING")
+  status            String                    @default("PENDING") // CANCELLED, PROCESSING, COMPLETED, FAILED, REJECTED
   txHash            String?                   @unique
   emailVerified     Boolean                   @default(false) @map("email_verified")
   google2FAVerified Boolean                   @default(false) @map("google2fa_verified")
   createdAt         DateTime                  @default(now()) @map("created_at")
   updatedAt         DateTime                  @updatedAt @map("updated_at")
   notified          Boolean                   @default(false)
+  note              String? // Admin note or reason for rejection
 
   @@index([userId])
   @@index([status])
@@ -673,31 +635,31 @@ model UserEvent {
 
 // Admin Management
 model Admin {
-  id               String    @id @default(cuid())
-  name             String
-  email            String    @unique
-  password         String // Hashed password
-  role             AdminRole @default(ADMIN)
-  permissions      String[] // Array of permission strings
-  isActive         Boolean   @default(true)
-  lastLoginAt      DateTime?
-  failedAttempts   Int       @default(0)
-  lockedUntil      DateTime?
-  profilePicture   String?   @db.VarChar(1024)
-  phone            String?
-  department       String?
-  isGoogle2FAEnabled Boolean @default(false)
-  google2FASecret  String?
-  createdBy        String? // Admin ID who created this admin
-  creator          Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
-  createdAdmins    Admin[]   @relation("AdminCreator")
-  deletedAt        DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  password           String // Hashed password
+  role               AdminRole @default(ADMIN)
+  permissions        String[] // Array of permission strings
+  isActive           Boolean   @default(true)
+  lastLoginAt        DateTime?
+  failedAttempts     Int       @default(0)
+  lockedUntil        DateTime?
+  profilePicture     String?   @db.VarChar(1024)
+  phone              String?
+  department         String?
+  isGoogle2FAEnabled Boolean   @default(false) @map("is_google_2fa_enabled")
+  google2FASecret    String?
+  createdBy          String? // Admin ID who created this admin
+  creator            Admin?    @relation("AdminCreator", fields: [createdBy], references: [id])
+  createdAdmins      Admin[]   @relation("AdminCreator")
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
-  adminLogs         AdminLog[]
-  adminRefreshTokens AdminRefreshToken[]
+  adminLogs          AdminLog[]
+  AdminRefreshTokens AdminRefreshToken[]
 
   @@index([email])
   @@index([isActive])
