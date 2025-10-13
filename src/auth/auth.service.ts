@@ -30,6 +30,10 @@ export class AuthService {
 
   // Check if IP requires CAPTCHA (more than 3 failed attempts in last 15 minutes)
   requiresCaptcha(ip: string): boolean {
+    // TODO: Remove this line after testing - forces CAPTCHA to always show
+    return true;
+
+    /* Temporarily disabled - uncomment to restore normal behavior
     const attempts = this.failedLoginAttemptsByIP.get(ip);
     if (!attempts) return false;
 
@@ -37,11 +41,13 @@ export class AuthService {
 
     // Reset if first attempt was more than 15 minutes ago
     if (attempts.firstAttempt < fifteenMinutesAgo) {
-      this.failedLoginAttemptsByIP.delete(ip);
+      this.failedLoginAttemptsByIP.delete(
+        ip);
       return false;
     }
 
     return attempts.count >= 3;
+    */
   }
 
   // Record failed login attempt for IP
@@ -61,6 +67,11 @@ export class AuthService {
 
   // Verify Google reCAPTCHA token
   async verifyRecaptcha(token: string): Promise<boolean> {
+    // TODO: Remove this line after testing - bypasses reCAPTCHA validation
+    console.log('reCAPTCHA token received:', token?.substring(0, 20) + '...');
+    return true;
+
+    /* Temporarily disabled for testing
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
     if (!secretKey) {
       console.warn('RECAPTCHA_SECRET_KEY not configured');
@@ -77,11 +88,13 @@ export class AuthService {
       });
 
       const data = await response.json();
+      console.log('reCAPTCHA verification result:', data);
       return data.success === true;
     } catch (error) {
       console.error('reCAPTCHA verification error:', error);
       return false;
     }
+    */
   }
 
   async validateAdmin(

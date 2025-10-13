@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { LocalStrategy } from './local.strategy';
 import { JwtStrategy } from './jwt.strategy';
+import { CaptchaLocalAuthGuard } from './captcha-local-auth.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -16,7 +17,7 @@ import { PrismaModule } from '../prisma/prisma.module';
       signOptions: { expiresIn: '15m' }, // 15 minutes expiration for enhanced security
     }),
   ],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [AuthService, LocalStrategy, JwtStrategy, CaptchaLocalAuthGuard],
   controllers: [AuthController],
   exports: [AuthService, JwtModule],
 })

@@ -6,8 +6,13 @@ import helmet from 'helmet';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Apply Helmet security headers
-  app.use(
+  // Apply Helmet security headers with Swagger exceptions
+  app.use((req, res, next) => {
+    // Disable CSP for Swagger UI to allow inline scripts/styles
+    if (req.path.startsWith('/swagger')) {
+      return next();
+    }
+
     helmet({
       contentSecurityPolicy: {
         directives: {
@@ -22,8 +27,8 @@ async function bootstrap() {
         includeSubDomains: true,
         preload: true,
       },
-    }),
-  );
+    })(req, res, next);
+  });
 
   // Configure CORS with allowed origins
   const allowedOrigins = process.env.CORS_ORIGINS

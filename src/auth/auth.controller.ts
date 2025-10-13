@@ -17,6 +17,7 @@ import {
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { CaptchaLocalAuthGuard } from './captcha-local-auth.guard';
 
 class LoginDto {
   email: string;
@@ -29,7 +30,7 @@ class LoginDto {
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @UseGuards(LocalAuthGuard)
+  @UseGuards(CaptchaLocalAuthGuard)
   @Post('portal-auth-gate-7a3b9f')
   @ApiOperation({ summary: 'Admin login (obfuscated endpoint)' })
   @ApiResponse({ status: 200, description: 'Login successful or 2FA required' })
@@ -40,19 +41,7 @@ export class AuthController {
     @Ip() ip: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    // Check if reCAPTCHA is required for this IP
     const ipAddress = ip || 'unknown';
-    if (this.authService.requiresCaptcha(ipAddress)) {
-      if (!loginDto.recaptchaToken) {
-        throw new Error('reCAPTCHA verification required');
-      }
-
-      const isValidCaptcha = await this.authService.verifyRecaptcha(loginDto.recaptchaToken);
-      if (!isValidCaptcha) {
-        throw new Error('Invalid reCAPTCHA');
-      }
-    }
-
     return this.authService.loginWith2FA(
       req.user,
       ipAddress,
